@@ -1,0 +1,14 @@
+{
+    "Energy": ["XOM","CVX","COP","EOG","PXD","SLB","HAL","DVN","OXY","MPC","VLO","PSX","KMI","WMB","EQT"],
+    "Materials": ["LIN","APD","ECL","SHW","PPG","MLM","VMC","NUE","STLD","FCX","ALB","DD"],
+    "Industrials": ["CAT","DE","HON","GE","LMT","NOC","RTX","BA","MMM","ITW","EMR","ETN","PH","GD","UPS","FDX","CMI","DAL","LUV","UNP","NSC","CSX","ROP","ROK","OTIS"],
+    "Consumer Discretionary": ["AMZN","TSLA","HD","LOW","MCD","SBUX","NKE","TGT","BKNG","MAR","HLT","MGM","ROST","TJX","GM","F","ULTA","ORLY","AZO","PVH","TPR","CCL","RCL","EBAY","LULU"],
+    "Consumer Staples": ["PG","KO","PEP","WMT","COST","MO","PM","MDLZ","KMB","CL","KHC","GIS","HSY","SYY","KR","TAP","STZ","EL","CPB","CHD"],
+    "Health Care": ["JNJ","PFE","MRK","ABBV","LLY","BMY","GILD","AMGN","MDT","SYK","ISRG","DHR","TMO","UNH","HUM","CI","HCA","CVS","ZBH","REGN"],
+    "Financials": ["JPM","BAC","C","WFC","GS","MS","BLK","BK","STT","TROW","SCHW","AXP","COF","DFS","USB","PNC","TFC","CMA","MTB","RF","CB","TRV","AIG","MET","PRU"],
+    "Information Technology": ["AAPL","MSFT","NVDA","AVGO","AMD","INTC","QCOM","TXN","MU","ORCL","CRM","NOW","SNOW","PANW","ANET","ADBE","SHOP","SAP","ASML","TSM","LRCX","KLAC","AMAT","ADI","NXPI","INTU","CDNS","CRWD","ZS","MDB"],
+    "Communication Services": ["GOOGL","META","DIS","NFLX","VZ","T","TMUS","CMCSA","CHTR","EA","TTWO","PARA"],
+    "Utilities": ["NEE","DUK","SO","D","AEP","EXC","SRE","XEL"],
+    "Real Estate": ["PLD","AMT","CCI","SPG","O","PSA","WELL","EQIX"]
+  }
+  
