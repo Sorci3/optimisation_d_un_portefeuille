@@ -54,14 +54,14 @@ def charger_donnees():
     """Charge les fichiers CSV et JSON."""
     # 1. Chargement des rendements
     try:
-        df = pd.read_csv("data/returns_final.csv", index_col="Date", parse_dates=True)
+        df = pd.read_csv("../data/returns_final.csv", index_col="Date", parse_dates=True)
     except FileNotFoundError:
         st.error("Le fichier 'returns_final.csv' est introuvable.")
         return None, None, None
 
     # 2. Chargement des secteurs
     try:
-        with open("documentDuProf/tick.json", "r") as f:
+        with open("../data/tick.json", "r") as f:
             secteurs_dict = json.load(f)
     except FileNotFoundError:
         st.error("Le fichier 'tick.json' est introuvable.")
