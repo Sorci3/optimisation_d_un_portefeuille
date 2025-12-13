@@ -121,8 +121,8 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
     algorithm = NSGA2(
         pop_size=pop_size,
         sampling=CustomSampling(K=K, delta_tol=delta_tol),
-        crossover=SBX(prob=0.9, eta=5),
-        mutation=PM(prob=1.0 / problem.N, eta=10),
+        crossover=SBX(prob=0.9, eta=10),
+        mutation=PM(prob=1.0 / problem.N, eta=5),
         eliminate_duplicates=True
     )
 
@@ -140,55 +140,127 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
     return res
 
 
-def filter_pareto_by_min_return(res, r_min):
+def filter_step1_return(res, r_min):
     """
-    Filtre les solutions du front de Pareto avec rendement >= r_min
+        Filtre les résultats d'optimisation pour ne conserver que les solutions
+        dépassant un seuil de rendement minimum.
 
-    Args:
-        res: résultat de l'optimisation NSGA-II
-        r_min: rendement minimal souhaité
+        Parameters
+        ----------
+        res : object
+            L'objet résultat de l'optimisation (ex: objet Result de pymoo).
+            Il doit posséder les attributs suivants :
+            - res.F : np.ndarray, matrice des valeurs objectives.
+            - res.X : np.ndarray, matrice des variables de décision.
+        r_min : float
+            Le rendement minimum acceptable (seuil).
 
-    Returns:
-        filtered_X: poids des portefeuilles filtrés
-        filtered_F: objectifs des portefeuilles filtrés
-        indices: indices des solutions retenues
-    """
-    returns = -res.F[:, 0]
+        Returns
+        -------
+        tuple
+            Un tuple (X_filtered, F_filtered) contenant :
+            - X_filtered (np.ndarray) : Les variables de décision satisfaisant le critère.
+            - F_filtered (np.ndarray) : Les valeurs objectives correspondantes.
 
+            Retourne (None, None) si aucune solution ne satisfait le critère `r_min`.
+        """
+
+    # Extraction des données
+    returns = -res.F[:, 0]  # Rappel : on maximise le rendement (qui est minimisé en négatif)
+
+    # Création du masque
     mask = returns >= r_min
     indices = np.where(mask)[0]
 
     if len(indices) == 0:
-        return None, None, None
+        return None, None
 
-    filtered_X = res.X[mask]
-    filtered_F = res.F[mask]
-
-    return filtered_X, filtered_F, indices
+    return res.X[mask], res.F[mask]
 
 
-def select_min_risk_portfolio(filtered_X, filtered_F):
+def filter_step2_risk(X, F, tolerance=0.20):
     """
-    Sélectionne le portefeuille à risque minimal parmi les solutions filtrées
+        Filtre les solutions en conservant celles dont le risque est proche
+        du risque minimal absolu (dans une marge de tolérance)..
 
-    Args:
-        filtered_X: poids des portefeuilles filtrés
-        filtered_F: objectifs des portefeuilles filtrés
+        Parameters
+        ----------
+        X : np.ndarray or None
+            Variables de décision (filtrées à l'étape précédente).
+            Si None, la fonction retourne immédiatement (None, None).
+        F : np.ndarray or None
+            Valeurs objectives correspondantes.
+            Hypothèse : F[:, 1] représente la variance (on applique sqrt pour avoir l'écart-type).
+        tolerance : float, optional
+            La marge de tolérance en pourcentage par rapport au risque minimum.
+            Par défaut 0.20 (soit +20% au-dessus du risque minimal).
 
-    Returns:
-        best_weights: poids du meilleur portefeuille
-        best_return: rendement du meilleur portefeuille
-        best_risk: risque du meilleur portefeuille
-        best_cost: coût du meilleur portefeuille
+        Returns
+        -------
+        tuple
+            Un tuple (X_filtered, F_filtered) contenant les solutions sous le seuil de risque.
+            Retourne (None, None) si l'entrée X est None.
+        """
+
+    if X is None:
+        return None, None
+
+    # Calcul des risques
+    risks = np.sqrt(F[:, 1])
+
+    # On identifie le "champion" du risque (le plus bas absolu)
+    min_risk_val = np.min(risks)
+
+    # On définit la barre à ne pas franchir (Risque Min + 10%)
+    risk_threshold = min_risk_val * (1.0 + tolerance)
+
+    # On garde tous ceux qui sont sous cette barre
+    mask = risks <= risk_threshold
+
+    return X[mask], F[mask]
+
+
+def select_step3_cost(X, F):
     """
-    if filtered_X is None or len(filtered_X) == 0:
+        Sélectionne la solution finale en minimisant le coût (3ème objectif) parmi les candidats restants.
+
+        Parameters
+        ----------
+        X : np.ndarray or None
+            Les variables de décision (poids) des solutions ayant passé les filtres précédents.
+            Si None ou vide, la fonction renvoie des None.
+        F : np.ndarray or None
+            La matrice des objectifs correspondante.
+            Structure attendue :
+            - F[:, 0] : -Rendement (à inverser).
+            - F[:, 1] : Variance (à passer à la racine).
+            - F[:, 2] : Coût (critère de sélection ici).
+
+        Returns
+        -------
+        tuple
+            Un tuple (best_weights, best_return, best_risk, best_cost) contenant :
+            - best_weights (np.ndarray) : Le vecteur de poids final du portefeuille choisi.
+            - best_return (float) : Le rendement attendu (positif).
+            - best_risk (float) : La volatilité (écart-type).
+            - best_cost (float) : Le coût de transaction ou de gestion.
+
+            Retourne (None, None, None, None) si aucune solution n'est disponible en entrée.
+        """
+
+    if X is None or len(X) == 0:
         return None, None, None, None
 
-    idx_min_risk = np.argmin(filtered_F[:, 1])
-    best_weights = filtered_X[idx_min_risk]
-    best_return = -filtered_F[idx_min_risk, 0]  
-    best_risk = np.sqrt(filtered_F[idx_min_risk, 1])  
-    best_cost = filtered_F[idx_min_risk, 2]
+    costs = F[:, 2]
+
+    # On prend l'indice du coût minimal parmi les survivants
+    idx_best = np.argmin(costs)
+
+    # Récupération des valeurs finales
+    best_weights = X[idx_best]
+    best_return = -F[idx_best, 0]
+    best_risk = np.sqrt(F[idx_best, 1])
+    best_cost = F[idx_best, 2]
 
     return best_weights, best_return, best_risk, best_cost
 

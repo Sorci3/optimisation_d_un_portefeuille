@@ -587,21 +587,33 @@ if df_rendements is not None and qm is not None:
                 min_r_n, max_r_n = float(returns_n.min()), float(returns_n.max())
                 r_min_user = st.slider("Rendement Minimal", min_r_n, max_r_n, (min_r_n + max_r_n) / 2)
 
-                filtered_X, filtered_F, indices = nsga2.filter_pareto_by_min_return(res, r_min_user)
+                X_step1, F_step1 = nsga2.filter_step1_return(res, r_min_user)
 
-                if filtered_X is not None:
-                    best_w, best_r, best_risk, best_cost = nsga2.select_min_risk_portfolio(filtered_X, filtered_F)
+                if X_step1 is not None:
+                    # Optionnel : Slider pour la tolérance (sinon mettre 0.05 en dur)
+                    # risk_tol = st.slider("Tolérance Risque vs Coût", 0.0, 0.2, 0.05, 0.01)
+                    risk_tol = 0.05  # On accepte 5% d'écart avec le risque min pour optimiser les coûts
 
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Rendement", f"{best_r:.2%}")
-                    c2.metric("Risque", f"{best_risk:.2%}")
-                    c3.metric("Coûts", f"{best_cost:.2%}")
+                    # 2. ÉTAPE RISQUE (Crée une short-list)
+                    X_step2, F_step2 = nsga2.filter_step2_risk(X_step1, F_step1, tolerance=risk_tol)
 
-                    df_top = nsga2.get_top_assets(best_w, asset_names, top_n=params['K'])
-                    df_top['Weight'] = df_top['Weight'].apply(lambda x: f"{x:.2%}")
-                    st.dataframe(df_top, hide_index=True)
+                    # 3. ÉTAPE COÛT (Choix final)
+                    if X_step2 is not None:
+                        best_w, best_r, best_risk, best_cost = nsga2.select_step3_cost(X_step2, F_step2)
+
+                        # Affichage
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Rendement", f"{best_r:.2%}")
+                        c2.metric("Risque", f"{best_risk:.2%}")
+                        c3.metric("Coûts", f"{best_cost:.2%}")
+
+                        df_top = nsga2.get_top_assets(best_w, asset_names, top_n=params['K'])
+                        df_top['Weight'] = df_top['Weight'].apply(lambda x: f"{x:.2%}")
+                        st.dataframe(df_top, hide_index=True)
+                    else:
+                        st.error("Aucune solution trouvée après le filtre de risque.")
                 else:
-                    st.warning("Aucun portefeuille trouvé.")
+                    st.error(f"Aucun portefeuille n'atteint le rendement de {r_min_user:.1%}")
 
 elif df_rendements is None:
     st.error("Impossible de charger les données.")
