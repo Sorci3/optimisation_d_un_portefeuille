@@ -7,7 +7,7 @@ import plotly.express as px
 import os
 
 # IMPORT DU MODULE LOGIQUE (Votre fichier partie1.py)
-import partie1 as p1
+import src.partie1_markowitz as p1
 
 # ==============================================================================
 # 1. CONFIGURATION DE LA PAGE
@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 Optimisation de Portefeuille & Front de Pareto")
+st.title("Optimisation de Portefeuille & Front de Pareto")
 st.markdown("""
 Cette application permet de visualiser la frontière efficiente (Markowitz), 
 de définir un rendement cible et d'analyser la composition sectorielle du portefeuille optimal.
