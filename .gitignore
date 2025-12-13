@@ -1,3 +1,5 @@
 .venv/
 mlruns/
 .mlflow/
+.vscode/
+.idea/
