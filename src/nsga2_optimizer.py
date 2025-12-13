@@ -121,8 +121,8 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
     algorithm = NSGA2(
         pop_size=pop_size,
         sampling=CustomSampling(K=K, delta_tol=delta_tol),
-        crossover=SBX(prob=0.9, eta=15),
-        mutation=PM(prob=1.0 / problem.N, eta=20),
+        crossover=SBX(prob=0.9, eta=5),
+        mutation=PM(prob=1.0 / problem.N, eta=10),
         eliminate_duplicates=True
     )
 

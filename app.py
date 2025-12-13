@@ -7,8 +7,6 @@ import plotly.express as px
 import os
 import time
 
-
-
 try:
     import src.partie1_markowitz as p1
 except ImportError:
@@ -35,6 +33,34 @@ except ImportError:
     except ImportError:
         st.error("Module 'quality_metrics.py' introuvable. Les indicateurs de qualité seront désactivés.")
         qm = None
+
+# ==============================================================================
+# FONCTIONS UTILITAIRES (AJOUTÉES)
+# ==============================================================================
+
+def extract_2d_pareto_front(risks, returns):
+    """
+    Extrait la frontière efficiente 2D (Risque vs Rendement) d'un nuage de points.
+    On trie par risque croissant, et on ne garde que les points qui améliorent le rendement max.
+    """
+    # Trier les points par risque (du plus petit au plus grand)
+    sorted_indices = np.argsort(risks)
+    sorted_risks = risks[sorted_indices]
+    sorted_returns = returns[sorted_indices]
+
+    pareto_risks = []
+    pareto_returns = []
+    
+    # On garde une trace du meilleur rendement vu jusqu'ici
+    max_ret_so_far = -float('inf')
+
+    for r, ret in zip(sorted_risks, sorted_returns):
+        if ret > max_ret_so_far:
+            pareto_risks.append(r)
+            pareto_returns.append(ret)
+            max_ret_so_far = ret
+            
+    return pareto_risks, pareto_returns
 
 # ==============================================================================
 # CONFIGURATION
@@ -382,6 +408,44 @@ if df_rendements is not None and qm is not None:
                 )
                 st.plotly_chart(fig_3d, use_container_width=True)
 
+                # ------------------------------------------------------------------
+                # AJOUT : VUE 2D AVEC FRONTIÈRE POUR MONTE CARLO
+                # ------------------------------------------------------------------
+                st.subheader("Projection 2D : Risque vs Rendement")
+                
+                # 1. Calcul de la frontière
+                p_risks, p_returns = extract_2d_pareto_front(risks, returns)
+                
+                # 2. Création du graphique combiné
+                fig_2d = go.Figure()
+
+                # Couche 1 : Le Nuage (tous les points)
+                fig_2d.add_trace(go.Scatter(
+                    x=risks, y=returns,
+                    mode='markers',
+                    name='Simulations (Nuage)',
+                    marker=dict(color='lightgrey', size=3, opacity=0.5),
+                    hovertemplate='Risque: %{x:.2%}<br>Rendement: %{y:.2%}'
+                ))
+
+                # Couche 2 : Le Front de Pareto (Ligne rouge)
+                fig_2d.add_trace(go.Scatter(
+                    x=p_risks, y=p_returns,
+                    mode='lines+markers',
+                    name='Frontière Efficiente (Pareto)',
+                    line=dict(color='red', width=2),
+                    marker=dict(size=4, color='red')
+                ))
+
+                fig_2d.update_layout(
+                    xaxis_title="Risque (Volatilité)",
+                    yaxis_title="Rendement Espéré",
+                    height=500,
+                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                )
+                st.plotly_chart(fig_2d, use_container_width=True)
+                # ------------------------------------------------------------------
+
                 st.divider()
                 st.subheader("Sélection du Portefeuille")
 
@@ -485,6 +549,39 @@ if df_rendements is not None and qm is not None:
                     height=600
                 )
                 st.plotly_chart(fig_3d, use_container_width=True)
+
+                # ------------------------------------------------------------------
+                # AJOUT : VUE 2D AVEC FRONTIÈRE POUR NSGA-II
+                # ------------------------------------------------------------------
+                st.subheader("Projection 2D : Convergence NSGA-II")
+
+                p_risks_n, p_returns_n = extract_2d_pareto_front(risks_n, returns_n)
+
+                fig_2d_nsga = go.Figure()
+
+                # Les solutions trouvées par NSGA-II
+                fig_2d_nsga.add_trace(go.Scatter(
+                    x=risks_n, y=returns_n,
+                    mode='markers',
+                    name='Solutions NSGA-II',
+                    marker=dict(color='blue', size=5, opacity=0.6)
+                ))
+
+                # La ligne de front (lisse)
+                fig_2d_nsga.add_trace(go.Scatter(
+                    x=p_risks_n, y=p_returns_n,
+                    mode='lines',
+                    name='Frontière Identifiée',
+                    line=dict(color='red', width=2)
+                ))
+
+                fig_2d_nsga.update_layout(
+                    xaxis_title="Risque",
+                    yaxis_title="Rendement",
+                    height=500
+                )
+                st.plotly_chart(fig_2d_nsga, use_container_width=True)
+                # ------------------------------------------------------------------
 
                 st.divider()
                 min_r_n, max_r_n = float(returns_n.min()), float(returns_n.max())
