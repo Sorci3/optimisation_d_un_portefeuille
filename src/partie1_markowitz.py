@@ -52,7 +52,7 @@ def projection_simplex(v):
     cond = u - (cssv - 1) / indices > 0
     
     if not np.any(cond):
-        return np.ones(n) / n  # Fallback sécurité
+        return np.ones(n) / n  
         
     rho = indices[cond][-1]
     theta = (cssv[rho - 1] - 1) / rho
@@ -84,18 +84,14 @@ def calculer_frontiere_efficiente(mu, Sigma, nb_points=100, nb_iterations=300, l
     resultats_rendement = []
     resultats_poids = []
 
-    # Initialisation (1/N)
     poids_courants = np.array([1/nombre_actifs] * nombre_actifs)
 
-    # Boucle sur les alphas (Warm Start)
     for alpha in alphas:
-        # Optimisation locale pour cet alpha
         for _ in range(nb_iterations):
             grad = calculer_gradient(poids_courants, mu, Sigma, alpha)
             poids_courants = poids_courants - lr * grad
             poids_courants = projection_simplex(poids_courants)
         
-        # Enregistrement des résultats
         ret = np.dot(poids_courants, mu)
         risk = np.sqrt(np.dot(poids_courants.T, np.dot(Sigma, poids_courants)))
         

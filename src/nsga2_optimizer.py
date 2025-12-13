@@ -44,20 +44,24 @@ class PortfolioOptimizationProblem(Problem):
         )
 
     def _evaluate(self, X, out, *args, **kwargs):
-        """Évaluation des objectifs et contraintes"""
-        # Objectif 1: -rendement (minimiser = maximiser rendement)
+        """
+        Évaluation des objectifs et contraintes
+        - Objectif 1: -rendement (minimiser = maximiser rendement)
+        - Objectif 2: risque (variance)
+        - Objectif 3: coûts de transaction
+
+        - Contrainte 1: somme des poids = 1
+        - Contrainte 2: cardinalité exacte K
+        """
         f1 = -X @ self.mu
 
-        # Objectif 2: risque (variance)
         f2 = np.sum(X @ self.Sigma * X, axis=1)
 
-        # Objectif 3: coûts de transaction
-        f3 = self.c_prop * np.sum(np.abs(X - self.w_current), axis=1)
 
-        # Contrainte 1: somme des poids = 1
+        f3 = self.c_prop * np.sum(np.abs(X - self.w_current), axis=1)
+        
         g1 = np.abs(X.sum(axis=1) - 1.0) - 1e-6
 
-        # Contrainte 2: cardinalité exacte K
         n_active = np.sum(X > self.delta_tol, axis=1)
         g2 = np.abs(n_active - self.K) - 0.5
 
@@ -75,15 +79,9 @@ class CustomSampling(FloatRandomSampling):
 
     def _do(self, problem, n_samples, **kwargs):
         X = np.zeros((n_samples, problem.N))
-
         for i in range(n_samples):
-            # Sélectionner K actifs aléatoirement
             active_assets = np.random.choice(problem.N, self.K, replace=False)
-
-            # Générer des poids aléatoires pour ces actifs
             weights = np.random.dirichlet(np.ones(self.K))
-
-            # Assigner les poids
             X[i, active_assets] = weights
 
         return X
@@ -111,7 +109,6 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
         res: objet résultat de pymoo contenant le front de Pareto
     """
 
-    # Définir le problème
     problem = PortfolioOptimizationProblem(
         mu=mu,
         Sigma=Sigma,
@@ -121,7 +118,6 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
         delta_tol=delta_tol
     )
 
-    # Configurer l'algorithme NSGA-II
     algorithm = NSGA2(
         pop_size=pop_size,
         sampling=CustomSampling(K=K, delta_tol=delta_tol),
@@ -130,10 +126,8 @@ def optimize_portfolio_nsga2(mu, Sigma, w_current, K,
         eliminate_duplicates=True
     )
 
-    # Critère d'arrêt
     termination = get_termination("n_gen", n_gen)
 
-    # Optimisation
     res = minimize(
         problem,
         algorithm,
@@ -159,10 +153,8 @@ def filter_pareto_by_min_return(res, r_min):
         filtered_F: objectifs des portefeuilles filtrés
         indices: indices des solutions retenues
     """
-    # Le rendement est -F[:, 0] (car on minimise -rendement)
     returns = -res.F[:, 0]
 
-    # Filtrer les solutions
     mask = returns >= r_min
     indices = np.where(mask)[0]
 
@@ -192,12 +184,10 @@ def select_min_risk_portfolio(filtered_X, filtered_F):
     if filtered_X is None or len(filtered_X) == 0:
         return None, None, None, None
 
-    # Trouver l'indice du portefeuille à risque minimal (objectif 2)
     idx_min_risk = np.argmin(filtered_F[:, 1])
-
     best_weights = filtered_X[idx_min_risk]
-    best_return = -filtered_F[idx_min_risk, 0]  # Conversion en rendement positif
-    best_risk = np.sqrt(filtered_F[idx_min_risk, 1])  # Volatilité (racine carrée de variance)
+    best_return = -filtered_F[idx_min_risk, 0]  
+    best_risk = np.sqrt(filtered_F[idx_min_risk, 1])  
     best_cost = filtered_F[idx_min_risk, 2]
 
     return best_weights, best_return, best_risk, best_cost
