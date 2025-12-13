@@ -60,3 +60,4 @@ def simulation_monte_carlo(mu, Sigma, w_initial, K=10, c_prop=0.005, nb_simulati
         weights_record.append(w)
         
     return results, weights_record
+    return results, weights_record

@@ -205,8 +205,37 @@ if df_rendements is not None:
         # w_current = np.ones(len(asset_names)) / len(asset_names)
 
         # Après (On simule qu'on détient déjà 100% du premier actif -> Coûts variables) :
-        w_current = np.zeros(len(asset_names))
-        w_current[0] = 1.0
+        #w_current = np.zeros(len(asset_names))
+        #w_current[0] = 1.0
+
+        st.sidebar.divider()
+        st.sidebar.subheader("3. Portefeuille Actuel (w_current)")
+        
+        # Initialiser un portefeuille aléatoire fixe dans la session si n'existe pas
+        if 'w_current_fixe' not in st.session_state:
+            # On génère un portefeuille valide (somme = 1)
+            w_rnd = np.random.random(len(asset_names))
+            w_rnd = w_rnd / np.sum(w_rnd)
+            st.session_state['w_current_fixe'] = w_rnd
+
+        # Bouton pour changer de scénario (Générer un nouveau portefeuille de départ)
+        if st.sidebar.button("🎲 Générer un nouveau portefeuille actuel"):
+            w_rnd = np.random.random(len(asset_names))
+            w_rnd = w_rnd / np.sum(w_rnd)
+            st.session_state['w_current_fixe'] = w_rnd
+            st.rerun() # Force le rafraichissement immédiat
+
+        # Récupération
+        w_current = st.session_state['w_current_fixe']
+
+        # Affichage visuel pour confirmer qu'il n'est pas vide
+        st.sidebar.info(f"Portefeuille de départ défini.\nInvesti sur {np.sum(w_current > 0.01)} actifs.")
+        
+        # Visualisation optionnelle de w_current (petit expanander)
+        with st.sidebar.expander("Voir composition w_current"):
+             df_curr = pd.DataFrame({"Actif": asset_names, "Poids": w_current})
+             st.dataframe(df_curr.sort_values("Poids", ascending=False).head(5), hide_index=True)
+
 
         # ---------------- A. MONTE CARLO ----------------
         if "Monte Carlo" in methode_n2:
@@ -233,11 +262,6 @@ if df_rendements is not None:
             # Affichage Résultats MC
             if 'mc_results' in st.session_state:
                 res_mc = st.session_state['mc_results']
-                # --- BLOC DE DEBUG ---
-                st.error(f"Forme des résultats : {res_mc.shape}")
-                st.write("Aperçu brut (5 premiers) :", res_mc[:, :5])
-                st.write(f"Nombre de NaNs : {np.isnan(res_mc).sum()}")
-                st.write(f"Valeurs infinies : {np.isinf(res_mc).sum()}")
                 w_mc_list = st.session_state['mc_weights']
                 
                 # Extraction
@@ -260,7 +284,7 @@ if df_rendements is not None:
                     hovertemplate='Risque: %{x:.2%}<br>Rendement: %{y:.2%}<br>Coût: %{z:.2%}'
                 )])
                 fig_3d.update_layout(
-                    scene=dict(xaxis_title='Risque', yaxis_title='Rendement', zaxis_title='Coûts', aspectmode='data'),
+                    scene=dict(xaxis_title='Risque', yaxis_title='Rendement', zaxis_title='Coûts', aspectmode='cube'),
                     height=600, margin=dict(l=0, r=0, b=0, t=0)
                 )
                 st.plotly_chart(fig_3d, use_container_width=True)
