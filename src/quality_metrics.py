@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from functools import wraps
-from scipy.spatial.distance import cdist
+from pymoo.indicators.hv import HV
 
 def measure_execution_time(func):
     """
@@ -25,34 +25,26 @@ def measure_execution_time(func):
     return wrapper
 
 
-def calculate_hypervolume(pareto_front, reference_point):
+def calculate_hypervolume(pareto_front, reference_point=None):
     """
-    Calcule l'hypervolume du front de Pareto
-    Plus l'hypervolume est GRAND, meilleur est le front
-
-    Args:
-        pareto_front: array (n_solutions, n_objectives) - objectifs à MINIMISER
-        reference_point: array (n_objectives,) - point de référence (nadir)
-
-    Returns:
-        hv: valeur de l'hypervolume
-
-    Exemple:
-        # Front 2D : [(risque, -rendement), ...]
-        ref_point = [max_risk * 1.1, max_neg_return * 1.1]
-        hv = calculate_hypervolume(front, ref_point)
+    Calcule l'hypervolume. Robuste aux dimensions et aux échelles.
+    Utilise pymoo obligatoirement pour > 2 dimensions.
     """
+    # Si aucun point de ref n'est donné, on prend le Nadir + 10%
+    if reference_point is None:
+        nadir = np.max(pareto_front, axis=0)
+        # Marge de sécurité (gestion des valeurs nulles/négatives)
+        delta = np.abs(nadir) * 0.1
+        delta[delta < 1e-6] = 1e-6 # Évite d'ajouter 0
+        reference_point = nadir + delta
+
     try:
-        from pymoo.indicators.hv import HV
         ind = HV(ref_point=reference_point)
         hv = ind(pareto_front)
         return hv
-    except ImportError:
-        # Fallback : approximation simple pour 2D
-        if pareto_front.shape[1] == 2:
-            return _hypervolume_2d_simple(pareto_front, reference_point)
-        else:
-            return None
+    except Exception as e:
+        print(f"Erreur calcul HV (pymoo): {e}")
+        return 0.0
 
 
 def _hypervolume_2d_simple(front, ref_point):
@@ -74,6 +66,9 @@ def _hypervolume_2d_simple(front, ref_point):
         prev_x = point[1]
 
     return hv
+
+
+
 
 
 
@@ -136,6 +131,7 @@ def calculate_front_sharpe_metrics(returns, risks, risk_free_rate=0.0):
         'median_sharpe': np.median(valid_sharpe)
     }
 
+
 def evaluate_optimization_quality(
         pareto_front_objectives,
         portfolio_weights,
@@ -145,52 +141,43 @@ def evaluate_optimization_quality(
         reference_point=None
 ):
     """
-    Évalue la qualité globale d'une optimisation avec les 5 indicateurs
-
-    Args:
-        pareto_front_objectives: array (n_solutions, n_objectives)
-            Format attendu: [f1, f2, ...] où f1 = -rendement, f2 = variance
-        portfolio_weights: array (n_solutions, n_assets)
-        execution_time: float (secondes)
-        K: cardinalité cible (optionnel)
-        risk_free_rate: taux sans risque
-        reference_point: point de référence pour hypervolume (optionnel)
-
-    Returns:
-        dict: dictionnaire complet des 5 indicateurs
+    Évalue la qualité avec normalisation pour l'Hypervolume.
     """
-    # Extraction des objectifs
-    n_obj = pareto_front_objectives.shape[1]
+    # 1. Extraction des données
+    # Conversion explicite en float64 pour éviter les erreurs de précision
+    front = np.array(pareto_front_objectives, dtype=np.float64)
 
-    # Pour Markowitz (2 objectifs) : f1 = -rendement, f2 = variance
-    # Pour NSGA-II (3 objectifs) : f1 = -rendement, f2 = variance, f3 = coûts
-
-    returns = -pareto_front_objectives[:, 0]  # Convertir en rendement positif
-    risks = np.sqrt(pareto_front_objectives[:, 1])  # Volatilité
-
-    # Hypervolume
-    if reference_point is None:
-        # Point de référence par défaut : nadir + 10%
-        reference_point = np.max(pareto_front_objectives, axis=0) * 1.1
-
-    try:
-        hv = calculate_hypervolume(pareto_front_objectives, reference_point)
-    except:
-        hv = None
-
-    # Temps d'exécution (déjà fourni)
-    exec_time = execution_time
-
-    # Sharpe moyen
+    # 2. Calcul des métriques financières (Sharpe)
+    returns = -front[:, 0]  # On remet le rendement en positif
+    risks = np.sqrt(front[:, 1])  # Racine de la variance pour avoir l'écart-type
     sharpe_metrics = calculate_front_sharpe_metrics(returns, risks, risk_free_rate)
 
-    # Résultat global
-    results = {
-        'hypervolume': hv,
-        'execution_time': exec_time,
+    # 3. Calcul de l'Hypervolume NORMALISÉ
+    # L'HV brut est minuscule (1e-8), on normalise le front entre 0 et 1 pour avoir un score lisible.
+
+    # a. Trouver les bornes idéales (Min) et Nadir (Max) du front actuel
+    ideal_point = np.min(front, axis=0)
+    nadir_point = np.max(front, axis=0)
+
+    # b. Éviter la division par zéro si tous les points sont identiques
+    denom = nadir_point - ideal_point
+    denom[denom < 1e-9] = 1.0
+
+    # c. Normalisation Min-Max : (x - min) / (max - min)
+    normalized_front = (front - ideal_point) / denom
+
+    # d. Point de référence pour l'espace normalisé (toujours > 1.0)
+    # Le point (1.1, 1.1, 1.1) est standard pour des données normalisées [0,1]
+    ref_point_norm = np.ones(front.shape[1]) * 1.1
+
+    hv_value = calculate_hypervolume(normalized_front, ref_point_norm)
+
+    return {
+        'hypervolume': hv_value,  # Score entre 0 et ~1.33 (lisible !)
+        'hypervolume_raw': 0.0,  # On ignore le brut illisible
+        'execution_time': execution_time,
         'sharpe_metrics': sharpe_metrics,
-        'n_solutions': len(pareto_front_objectives),
-        'reference_point': reference_point
+        'n_solutions': len(front),
+        'reference_point_used': ref_point_norm  # Pour info
     }
 
-    return results
