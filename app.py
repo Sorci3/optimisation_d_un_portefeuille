@@ -27,14 +27,13 @@ except ImportError:
     except ImportError:
         st.warning("Le fichier 'nsga2_optimizer.py' est introuvable.")
 
-# IMPORT DU MODULE DE MÉTRIQUES
 try:
     import src.quality_metrics as qm
 except ImportError:
     try:
         import quality_metrics as qm
     except ImportError:
-        st.error("❌ Module 'quality_metrics.py' introuvable. Les indicateurs de qualité seront désactivés.")
+        st.error("Module 'quality_metrics.py' introuvable. Les indicateurs de qualité seront désactivés.")
         qm = None
 
 # ==============================================================================
@@ -46,7 +45,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 Optimisation de Portefeuille avec Indicateurs de Qualité")
+st.title("Optimisation de Portefeuille avec Indicateurs de Qualité")
 
 niveau = st.sidebar.selectbox(
     "Choisir le module",
@@ -122,9 +121,8 @@ df_rendements, mu, Sigma, asset_names, secteurs_data = charger_donnees_app()
 
 def display_quality_metrics(metrics, method_name):
     """Affiche les indicateurs de qualité dans Streamlit"""
-    st.subheader(f"📊 Indicateurs de Qualité : {method_name}")
+    st.subheader(f"Indicateurs de Qualité : {method_name}")
 
-    # Ligne de métriques principales
     col1, col2, col3= st.columns(3)
 
     with col1:
@@ -182,31 +180,27 @@ if df_rendements is not None and qm is not None:
         with st.spinner('Optimisation par Descente de Gradient...'):
             (risques, rendements, historiques_poids), exec_time_mk = run_markowitz_timed(mu, Sigma)
 
-        # Calcul des indicateurs de qualité
         if 'markowitz_metrics' not in st.session_state:
-            # Construction du front pour les métriques
             pareto_front = np.column_stack([
-                -rendements,  # f1 = -rendement (minimiser)
-                risques ** 2  # f2 = variance
+                -rendements,  
+                risques ** 2  
             ])
 
             metrics_mk = qm.evaluate_optimization_quality(
                 pareto_front_objectives=pareto_front,
                 portfolio_weights=historiques_poids,
                 execution_time=exec_time_mk,
-                K=None,  # Pas de contrainte de cardinalité pour Markowitz
+                K=None, 
                 risk_free_rate=0.0
             )
             st.session_state['markowitz_metrics'] = metrics_mk
         else:
             metrics_mk = st.session_state['markowitz_metrics']
 
-        # Affichage des métriques
         display_quality_metrics(metrics_mk, "Markowitz (Descente de Gradient)")
 
         st.divider()
 
-        # Interface classique
         min_r, max_r = float(min(rendements)), float(max(rendements))
         r_cible = st.sidebar.slider("Rendement Cible Annuel", min_r, max_r, (min_r + max_r) / 2, format="%.2f")
 
@@ -283,23 +277,36 @@ if df_rendements is not None and qm is not None:
         K = st.sidebar.slider("Cardinalité (Nb Actifs)", 2, 20, 10)
         c_prop = st.sidebar.slider("Coûts de Transaction (%)", 0.0, 2.0, 0.5, 0.1) / 100.0
 
-        # Portefeuille actuel
+        #--------------------------------------------------------------------------
+        #Definition du portefeuille aleatoire
+        #---------------------------------------------------------------------------
         st.sidebar.divider()
-        st.sidebar.subheader("Portefeuille Actuel")
-
+        st.sidebar.subheader("3. Portefeuille Actuel (w_current)")
+        
+        # Initialiser un portefeuille aléatoire fixe dans la session si n'existe pas
         if 'w_current_fixe' not in st.session_state:
+            # On génère un portefeuille valide (somme = 1)
             w_rnd = np.random.random(len(asset_names))
             w_rnd = w_rnd / np.sum(w_rnd)
             st.session_state['w_current_fixe'] = w_rnd
 
-        if st.sidebar.button("Générer nouveau portefeuille"):
+        # Bouton pour changer de scénario (Générer un nouveau portefeuille de départ)
+        if st.sidebar.button("Générer un nouveau portefeuille actuel"):
             w_rnd = np.random.random(len(asset_names))
             w_rnd = w_rnd / np.sum(w_rnd)
             st.session_state['w_current_fixe'] = w_rnd
-            st.rerun()
+            st.rerun() # Force le rafraichissement immédiat
 
+        # Récupération
         w_current = st.session_state['w_current_fixe']
-        st.sidebar.info(f"Investi sur {np.sum(w_current > 0.01)} actifs")
+
+        # Affichage visuel pour confirmer qu'il n'est pas vide
+        st.sidebar.info(f"Portefeuille de départ défini.\nInvesti sur {np.sum(w_current > 0.01)} actifs.")
+        
+        # Visualisation optionnelle de w_current (petit expanander)
+        with st.sidebar.expander("Voir composition w_current"):
+            df_curr = pd.DataFrame({"Actif": asset_names, "Poids": w_current})
+            st.dataframe(df_curr.sort_values("Poids", ascending=False).head(5), hide_index=True)
 
         # ---------------- A. MONTE CARLO ----------------
         if "Monte Carlo" in methode_n2:
@@ -324,8 +331,6 @@ if df_rendements is not None and qm is not None:
                     st.session_state['mc_weights'] = weights_mc
                     st.session_state['mc_exec_time'] = exec_time_mc
                     st.session_state['mc_params'] = {'K': K, 'c': c_prop}
-
-                    # Calcul des métriques
                     risks, returns, costs = results_mc
                     pareto_front_mc = np.column_stack([
                         -returns,
@@ -345,7 +350,6 @@ if df_rendements is not None and qm is not None:
                     st.success("Simulation terminée !")
 
             if 'mc_results' in st.session_state:
-                # Affichage des métriques
                 if 'mc_metrics' in st.session_state:
                     display_quality_metrics(
                         st.session_state['mc_metrics'],
@@ -436,7 +440,6 @@ if df_rendements is not None and qm is not None:
                         st.session_state['nsga_exec_time'] = exec_time_nsga
                         st.session_state['nsga_params'] = {'K': K, 'c': c_prop}
 
-                        # Calcul des métriques
                         metrics_nsga = qm.evaluate_optimization_quality(
                             pareto_front_objectives=res.F,
                             portfolio_weights=res.X,
@@ -451,7 +454,6 @@ if df_rendements is not None and qm is not None:
                         st.error(f"Erreur NSGA-II : {e}")
 
             if 'nsga_res' in st.session_state:
-                # Affichage des métriques
                 if 'nsga_metrics' in st.session_state:
                     display_quality_metrics(
                         st.session_state['nsga_metrics'],
