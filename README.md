@@ -46,7 +46,7 @@ OPTIMISATION_MULTICRITERE/
 │   ├── partie2_constraint.py # Gestion des contraintes du problème
 │   └── partie2_montecarlo.py # Simulations de Monte Carlo
 │
-├── app.py # Point d'entrée de l'application
+├── app.py
 ├── Rapport_optimisationMulticritere.pdf # Rapport final du projet
 ├── requirements.txt # Liste des dépendances Python
 └── README.md # Documentation du projet
